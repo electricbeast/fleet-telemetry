@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
 	_ "go.uber.org/automaxprocs"
 
+	"github.com/airbrake/gobrake/v5"
 	"github.com/teslamotors/fleet-telemetry/config"
+	logrus "github.com/teslamotors/fleet-telemetry/logger"
+	"github.com/teslamotors/fleet-telemetry/server/airbrake"
 	"github.com/teslamotors/fleet-telemetry/server/monitoring"
 	"github.com/teslamotors/fleet-telemetry/server/streaming"
 )
@@ -23,7 +25,7 @@ func main() {
 
 	if config.Monitoring != nil && config.Monitoring.ProfilingPath != "" {
 		if config.Monitoring.ProfilerFile, err = os.Create(config.Monitoring.ProfilingPath); err != nil {
-			logger.Errorf("profiling_file_error %v", err)
+			logger.ErrorLog("profiling_file_error", err, nil)
 			config.Monitoring.ProfilingPath = ""
 		}
 
@@ -33,26 +35,35 @@ func main() {
 		}()
 	}
 
-	panic(startServer(config, logger))
+	airbrakeNotifier, _, err := config.CreateAirbrakeNotifier(logger)
+	if err != nil {
+		panic(err)
+	}
+	if airbrakeNotifier != nil {
+		defer airbrakeNotifier.NotifyOnPanic()
+		defer airbrakeNotifier.Close()
+	}
+	panic(startServer(config, airbrakeNotifier, logger))
 }
 
-func startServer(config *config.Config, logger *logrus.Logger) (err error) {
-	logger.Infoln("starting")
+func startServer(config *config.Config, airbrakeNotifier *gobrake.Notifier, logger *logrus.Logger) (err error) {
+	logger.ActivityLog("starting_server", nil)
 	registry := streaming.NewSocketRegistry()
 
+	airbrakeHandler := airbrake.NewAirbrakeHandler(airbrakeNotifier)
+
 	if config.StatusPort > 0 {
-		monitoring.StartStatusServer(config, logger)
+		monitoring.StartStatusServer(config, logger, airbrakeHandler)
 	}
 	if config.Monitoring != nil {
 		monitoring.StartServerMetrics(config, logger, registry)
 	}
 
-	producerRules, err := config.ConfigureProducers(logger)
+	producerRules, err := config.ConfigureProducers(airbrakeHandler, logger)
 	if err != nil {
 		return err
 	}
-
-	server, _, err := streaming.InitServer(config, producerRules, logger, registry)
+	server, _, err := streaming.InitServer(config, airbrakeHandler, producerRules, logger, registry)
 	if err != nil {
 		return err
 	}

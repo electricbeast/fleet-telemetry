@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	logrus "github.com/teslamotors/fleet-telemetry/logger"
 	"github.com/teslamotors/fleet-telemetry/protos"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -109,10 +110,15 @@ func (record *Record) Raw() []byte {
 	return record.RawBytes
 }
 
-// Length gets the records byte size
-func (record *Record) Length() int {
+// Length gets the records flatbuffer payload byte size
+func (record *Record) LengthRawBytes() int {
 	record.ensureEncoded()
 	return len(record.RawBytes)
+}
+
+// Length gets the records byte size
+func (record *Record) Length() int {
+	return len(record.PayloadBytes)
 }
 
 // Encode encodes the records into bytes
@@ -124,13 +130,13 @@ func (record *Record) Encode() ([]byte, error) {
 // Dispatch uses the configuration to send records to the list of backends/data stores they belong
 func (record *Record) Dispatch() {
 	logger := record.Serializer.Logger()
-	logger.Debugf("socketID=\"%s\" message=\"dispatching Message: %#v\"", record.SocketID, record.Raw())
+	logger.Log(logrus.DEBUG, "dispatching_message", logrus.LogInfo{"socket_id": record.SocketID, "payload": record.Raw()})
 	record.Serializer.Dispatch(record)
 }
 
 func (record *Record) ensureEncoded() {
 	if record.RawBytes == nil && record.Serializer != nil && record.Serializer.Logger() != nil {
-		record.Serializer.Logger().Error("record_RawBytes_blank")
+		record.Serializer.Logger().ErrorLog("record_RawBytes_blank", nil, nil)
 	}
 }
 

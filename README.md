@@ -158,10 +158,19 @@ The following [dispatchers](./telemetry/producer.go#L10-L19) are supported
 * ZMQ: Configure with the config.json file.  See implementation here: [config/config.go](./config/config.go)
 * Logger: This is a simple STDOUT logger that serializes the protos to json.
   
->NOTE: To add a new dispatcher, please provide integration tests and updated documentation. To serialize dispatcher data as json instead of protobufs, add a config `transmit_decoded_records` and set value to `true` as shown [here](config/test_configs_test.go#L104)
+>NOTE: To add a new dispatcher, please provide integration tests and updated documentation. To serialize dispatcher data as json instead of protobufs, add a config `transmit_decoded_records` and set value to `true` as shown [here](config/test_configs_test.go#L186)
+
+## Reliable Acks
+Fleet telemetry allows you to send ack messages back to the vehicle. This is useful for applications that need to ensure the data was received and processed. To enable this feature, set `reliable_ack_sources` to one of configured dispatchers (`kafka`,`kinesis`,`pubsub`,`zmq`) in the config file. You can only set reliable acks to one dispatcher per recordType. See [here](./test/integration/config.json#L8) for sample config.
 
 ## Metrics
-Configure and use Prometheus or a StatsD-interface supporting data store for metrics.
+Configure and use Prometheus or a StatsD-interface supporting data store for metrics. The integration test runs fleet telemetry with [grafana](https://grafana.com/docs/grafana/latest/datasources/google-cloud-monitoring/), which is compatible with prometheus. It also has an example dashboard which tracks important metrics related to the hosted server. Sample screenshot for the [sample dashboard](./test/integration/grafana/provisioning/dashboards/dashboard.json):-
+
+![Basic Dashboard](./doc/grafana-dashboard.png)
+
+## Logging
+
+To suppress [tls handshake error logging](https://cs.opensource.google/go/go/+/master:src/net/http/server.go;l=1933?q=%22TLS%20handshake%20error%20from%20%22&ss=go%2Fgo), set environment variable `SUPPRESS_TLS_HANDSHAKE_ERROR_LOGGING` to `true`. See [docker compose](./docker-compose.yml) for example.
 
 ## Protos
 Data is encapsulated into protobuf messages of different types. Protos can be recompiled via:
@@ -172,6 +181,8 @@ Data is encapsulated into protobuf messages of different types. Protos can be re
   ```sh
   make generate-protos
   ```
+## Airbrake
+Fleet telemetry allows you to monitor errors using [airbrake](https://www.airbrake.io/error-monitoring). The integration test runs fleet telemetry with [errbit](https://github.com/errbit/errbit), which is an airbrake compliant self-hosted error catcher. You can set a project key for airbrake using either the config file or via an environment variable `AIRBRAKE_PROJECT_KEY`. 
 
 # Testing
 
@@ -223,6 +234,7 @@ brew install libsodium zmq
 ## Integration Tests
 
 To run the integration tests: `make integration`
+To log into errbit instances, default username is `noreply@example.org` and default password is `test123`
 
 ## Building the binary for Linux from Mac ARM64
 

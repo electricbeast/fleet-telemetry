@@ -1,8 +1,7 @@
 package simple
 
 import (
-	"github.com/sirupsen/logrus"
-
+	logrus "github.com/teslamotors/fleet-telemetry/logger"
 	"github.com/teslamotors/fleet-telemetry/telemetry"
 )
 
@@ -16,12 +15,21 @@ func NewProtoLogger(logger *logrus.Logger) telemetry.Producer {
 	return &ProtoLogger{logger: logger}
 }
 
+// SetReliableAckTxType no-op for logger datastore
+func (p *ProtoLogger) ProcessReliableAck(entry *telemetry.Record) {
+}
+
 // Produce sends the data to the logger
 func (p *ProtoLogger) Produce(entry *telemetry.Record) {
 	data, err := entry.GetJSONPayload()
 	if err != nil {
-		p.logger.Errorf("json_unmarshal_error %s %v %s\n", entry.Vin, entry.Metadata(), err.Error())
+		p.logger.ErrorLog("json_unmarshal_error", err, logrus.LogInfo{"vin": entry.Vin, "metadata": entry.Metadata()})
 		return
 	}
-	p.logger.Infof("logger_json_unmarshal %s %v %s\n", entry.Vin, entry.Metadata(), string(data))
+	p.logger.ActivityLog("logger_json_unmarshal", logrus.LogInfo{"vin": entry.Vin, "metadata": entry.Metadata(), "data": string(data)})
+}
+
+// ReportError noop method
+func (p *ProtoLogger) ReportError(message string, err error, logInfo logrus.LogInfo) {
+	return
 }
